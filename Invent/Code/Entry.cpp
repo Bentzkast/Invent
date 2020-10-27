@@ -1,5 +1,4 @@
 
-#include <SDL.h>
 #include <SDL_mixer.h>
 #include <glad/glad.h>
 
@@ -19,98 +18,114 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+template <typename T>
+void Array<T>::Init(Memory_Chunk* memory, size_t count)
+{
+ capacity = count;
+ size = 0;
+ data = (T*)(memory->allocate(sizeof(T) * 50));
+}
+
+void Game_Screen::push_screen_texts(glm::vec2 pos, char* text)
+{
+  SDL_assert((screen_texts.size + 1) <= screen_texts.capacity);
+  screen_texts[screen_texts.size].pos = pos;
+  screen_texts[screen_texts.size].text = text;
+  screen_texts[screen_texts.size].text_len = SDL_strlen(text);
+  screen_texts.size++;
+}
+
 struct SDL_Context
 {
   SDL_Window* window = nullptr;
   int window_width = 0;
   int window_height = 0;
   SDL_GLContext gl_context = nullptr;
+
+  bool create()
+  {
+    window_width = 1080;
+    window_height = 720;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
+      SDL_Log("Unable to initialize SDL: %s", SDL_GetError());
+      return false;
+    }
+
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048 < 0))
+    {
+      SDL_Log("Unable to initialize SDL mixer: %s", Mix_GetError());
+      return false;
+    }
+
+    window = SDL_CreateWindow(
+      "PONG",
+      SDL_WINDOWPOS_CENTERED,
+      SDL_WINDOWPOS_CENTERED,
+      window_width,
+      window_height,
+      SDL_WINDOW_OPENGL
+    );
+    if (window == NULL)
+    {
+      SDL_Log("Unable to create window: %s", SDL_GetError());
+      return false;
+    }
+
+    // Context Profile
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+    // Versions
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+
+    // Color Buffer
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+
+    // Enable double buffering
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+    // Force OpenGL to use hardware acceleration
+    SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
+
+    gl_context = SDL_GL_CreateContext(window);
+    if (gl_context == NULL)
+    {
+      SDL_Log("Unable to create gl context: %s", SDL_GetError());
+      return false;
+    }
+
+    if (!gladLoadGLLoader(SDL_GL_GetProcAddress))
+    {
+      SDL_Log("Unable to create gl context: %s", SDL_GetError());
+      return false;
+    }
+
+    SDL_Log("Vendor:   %s", glGetString(GL_VENDOR));
+    SDL_Log("Renderer: %s", glGetString(GL_RENDERER));
+    SDL_Log("Version:  %s", glGetString(GL_VERSION));
+
+    SDL_GL_SetSwapInterval(1); // V SYNC
+    return true;
+  }
+
+  int destroy()
+  {
+      SDL_GL_DeleteContext(gl_context);
+      SDL_DestroyWindow(window);
+      Mix_CloseAudio();
+      SDL_QuitSubSystem(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+      Mix_Quit();
+      SDL_Quit();
+      return 0;
+  }
 };
-static int sdl_context_destroy(SDL_Context* sdl_context)
-{
-  SDL_GL_DeleteContext(sdl_context->gl_context);
-  SDL_DestroyWindow(sdl_context->window);
-  Mix_CloseAudio();
-  SDL_QuitSubSystem(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-  Mix_Quit();
-  SDL_Quit();
-  return 0;
-}
-static bool sdl_context_create(SDL_Context* sdl_context)
-{
-  sdl_context->window_width = 1080;
-  sdl_context->window_height = 720;
-
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
-    SDL_Log("Unable to initialize SDL: %s", SDL_GetError());
-    return false;
-  }
-
-  if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048 < 0))
-  {
-    SDL_Log("Unable to initialize SDL mixer: %s", Mix_GetError());
-    return false;
-  }
-
-  sdl_context->window = SDL_CreateWindow(
-    "An SDL window",
-    SDL_WINDOWPOS_CENTERED,
-    SDL_WINDOWPOS_CENTERED,
-    sdl_context->window_width,
-    sdl_context->window_height,
-    SDL_WINDOW_OPENGL
-  );
-  if (sdl_context->window == NULL)
-  {
-    SDL_Log("Unable to create window: %s", SDL_GetError());
-    return false;
-  }
-
-  // Context Profile
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
-  // Versions
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-
-  // Color Buffer
-  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-
-  // Enable double buffering
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-
-  // Force OpenGL to use hardware acceleration
-  SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
-
-  //SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-  //SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
-
-  sdl_context->gl_context = SDL_GL_CreateContext(sdl_context->window);
-  if (sdl_context->gl_context == NULL)
-  {
-    SDL_Log("Unable to create gl context: %s", SDL_GetError());
-    return false;
-  }
-
-  if (!gladLoadGLLoader(SDL_GL_GetProcAddress))
-  {
-    SDL_Log("Unable to create gl context: %s", SDL_GetError());
-    return false;
-  }
-
-  SDL_Log("Vendor:   %s", glGetString(GL_VENDOR));
-  SDL_Log("Renderer: %s", glGetString(GL_RENDERER));
-  SDL_Log("Version:  %s", glGetString(GL_VERSION));
-
-  SDL_GL_SetSwapInterval(1); // V SYNC
-  return true;
-}
-
-
-
 
 static void poll_input(Game_Input* game_input)
 {
@@ -166,6 +181,10 @@ static void poll_input(Game_Input* game_input)
       {
         game_input->is.down_down = is_down;
       } break;
+      case SDL_SCANCODE_RETURN:
+      {
+        game_input->is.enter_down = is_down;
+      }break;
       default:
         break;
       }
@@ -204,21 +223,18 @@ static Uint32 load_shader_2d(const char * vertex_shader_source, const char* frag
 
   // link shaders
   Uint32 shader_program = glCreateProgram();
-  glAttachShader(shader_program, vertex_shader);  SDL_Log("%d", glGetError());
+  glAttachShader(shader_program, vertex_shader);
 
-  glAttachShader(shader_program, fragment_shader);  SDL_Log("%d", glGetError());
+  glAttachShader(shader_program, fragment_shader);
 
-  glLinkProgram(shader_program);  SDL_Log("%d", glGetError());
+  glLinkProgram(shader_program); 
 
-  //glGetShaderiv(shader_program, GL_LINK_STATUS, &success);   SDL_Log(" w %d", glGetError());
-
-
-  //if (!success)
-  //{
-  //  glGetShaderInfoLog(shader_program, 512, NULL, temp_info_log_buffer);
-  //  SDL_Log("%s", temp_info_log_buffer);
-  //}
-  SDL_Log("%d", glGetError());
+  glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
+  if (!success)
+  {
+    glGetShaderInfoLog(shader_program, 512, NULL, temp_info_log_buffer);
+    SDL_Log("%s", temp_info_log_buffer);
+  }
 
   glDeleteShader(vertex_shader);
   glDeleteShader(fragment_shader);
@@ -226,30 +242,25 @@ static Uint32 load_shader_2d(const char * vertex_shader_source, const char* frag
   return shader_program;
 }
 
-struct Memory_Chunk
+
+void Memory_Chunk::init(size_t size)
 {
-  size_t size;
-  size_t used;
-  uint8_t* base;
-};
-static void memory_chuck_init(Memory_Chunk* memory, size_t size)
-{
-  memory->base = (Uint8*)SDL_calloc(0, size); // 1 mega bytes
-  memory->size = size;
+  base = (Uint8*)SDL_calloc(1, size); // 1 mega bytes
+  capacity = size;
 }
 
-static void* memory_chunk_allocate(Memory_Chunk* memory, size_t size)
+void* Memory_Chunk::allocate(size_t size)
 {
-  SDL_assert(memory->used + size <= memory->size);
-  void* result = memory->base + memory->used;
-  memory->used += size;
+  SDL_assert((used + size) <= capacity);
+  void* result = base + used;
+  used += size;
   return result;
 }
 
-static void memory_chunk_clear(Memory_Chunk* memory)
+void Memory_Chunk::clear()
 {
-  SDL_memset(memory->base, 0, memory->used);
-  memory->used = 0;
+  SDL_memset(base, 0, used);
+  used = 0;
 }
 
 struct Vertex_2D
@@ -273,9 +284,6 @@ static void entity_to_quad_verts(const Entity_2D* entity, Quad_Verts* quadVert)
   quadVert->bot_right = { { entity->pos.x + entity->size.x,  entity->pos.y + entity->size.y  }, {0,0} };
 }
 
-
-
-
 struct Mesh {
   Uint32 vertex_array;
   Uint32 vertex_buffer;
@@ -293,7 +301,7 @@ struct Quad_Triangle
   static const int element_count = 6;
 };
 
-static void create_2d_mesh(Memory_Chunk* memory, int entity_count, Mesh* mesh)
+static void create_2d_mesh(Memory_Chunk* temp_memory, int entity_count, Mesh* mesh)
 {
   glGenVertexArrays(1, &mesh->vertex_array);
   glGenBuffers(1, &mesh->vertex_buffer);
@@ -304,7 +312,7 @@ static void create_2d_mesh(Memory_Chunk* memory, int entity_count, Mesh* mesh)
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->element_buffer);
 
   // @TODO proper array data struct
-  Quad_Triangle* quad_triangles_array = (Quad_Triangle*)memory_chunk_allocate(memory, entity_count * sizeof(Quad_Triangle));
+  Quad_Triangle* quad_triangles_array = (Quad_Triangle*)temp_memory->allocate(entity_count * sizeof(Quad_Triangle));
   for (int i = 0; i < entity_count; i++)
   {
     quad_triangles_array[i].one = 0 + i * 4;
@@ -434,12 +442,6 @@ static bool font_character_create(const char* filepath, const int font_size, Fon
   FT_Done_FreeType(ft);
 }
 
-struct Screen_Text
-{
-  glm::vec2 pos;
-  char* text;
-  uint32_t text_len;
-};
 
 static void screen_text_to_quad_verts(const Font_Character* font_characters, const Screen_Text* screen_text, Quad_Verts* quad_vertices)
 {
@@ -473,33 +475,34 @@ static void screen_text_to_quad_verts(const Font_Character* font_characters, con
   }
 }
 
-enum Game_Mode
-{
-  MODE_MENU,
-  MODE_PONG
-};
+
 
 struct Audio_Library {
   Mix_Chunk* impact_sound;
+  Mix_Chunk* bop_sound;
+  Mix_Music* main_theme;
+  Mix_Music* boss_theme;
+  Music current_music;
 };
 
 int main(int argc,char* argv[])
 {
   SDL_Context sdl_context{};
-  if (!sdl_context_create(&sdl_context))
+  if (!sdl_context.create())
   {
-    sdl_context_destroy(&sdl_context);
+    sdl_context.destroy();
     return 0;
   }
 
+  glEnable(GL_MULTISAMPLE);
   glEnable(GL_CULL_FACE); // Face culling
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   Memory_Chunk main_memory{};
-  memory_chuck_init(&main_memory, 1 * 1024 * 1024); // 1 mb
+  main_memory.init(1 * 1024 * 1024); // 1 mb
   Memory_Chunk frame_memory{};
-  memory_chuck_init(&frame_memory, 1 * 1024 * 1024); // 1 mb
+  frame_memory.init(1 * 1024 * 1024); // 1 mb
 
   glm::mat4 projection_matrix = glm::ortho(0.0f, (float)sdl_context.window_width, (float)sdl_context.window_height, 0.0f);
 
@@ -534,49 +537,104 @@ int main(int argc,char* argv[])
   const char* font_fragment_shader_source = "#version 330 core\n"
     "in vec2 v_tex_coord;"
     "out vec4 FragColor;"
+    "uniform vec4 u_tint_color;"
     "uniform sampler2D u_texture;"
     "void main()"
     "{"
     "   vec4 sampled = vec4(1.0, 1.0, 1.0, texture(u_texture, v_tex_coord).r);" // only sample alpha
-    "   FragColor = vec4(0.9f, 0.9f, 0.9f, 1.0f) * sampled;" // WHITE
+    "   FragColor = u_tint_color * sampled;" // WHITE
     "}";
 
   Uint32 font_shader = load_shader_2d(font_vertex_shader_source, font_fragment_shader_source);
 
-
   constexpr int max_entity_count = 100;
   Mesh quad_mesh;
   create_2d_mesh(&frame_memory, max_entity_count, &quad_mesh);
-  memory_chunk_clear(&frame_memory);
+  frame_memory.clear();
 
-  // @TODO use game memory, use stack for now
-  Game_State game_state = {}; // entities size here
-  game_state.setup();
+
 
   // @TODO use game memory, use stack for now
   Game_Input game_input = {};
   Font_Character liberation_mono_font = {};
   font_character_create("Resources/Font/liberation_mono.ttf", 40, &liberation_mono_font);
 
-  // For graphics
-  // @TODO use game memory, use stack for now
-  Quad_Verts quad_vertices[max_entity_count] = {};
 
   // AUDIO
-  Audio_Library audio_library = {0};
-  audio_library.impact_sound = Mix_LoadWAV("Resources/Sound/impact.ogg");
-  if (!audio_library.impact_sound)
+  // @TODO music library module
+  Audio_Library* audio_library = (Audio_Library *) main_memory.allocate(sizeof(Audio_Library));
+  audio_library->impact_sound = Mix_LoadWAV("Resources/Sound/impact.ogg");
+  if (!audio_library->impact_sound)
   {
-    SDL_Log("Unable to log file %s", Mix_GetError());
+    SDL_Log("Unable to load music file %s", Mix_GetError());
+  }
+  audio_library->bop_sound = Mix_LoadWAV("Resources/Sound/bong.ogg");
+  if (!audio_library->bop_sound)
+  {
+    SDL_Log("Unable to load music file %s", Mix_GetError());
+  }
+
+  audio_library->main_theme = Mix_LoadMUS("Resources/Music/Resilience.ogg");
+  if (!audio_library->main_theme)
+  {
+    SDL_Log("Unable to load music file %s", Mix_GetError());
+  }
+
+  audio_library->boss_theme = Mix_LoadMUS("Resources/Music/Battleship.ogg");
+  if (!audio_library->boss_theme)
+  {
+    SDL_Log("Unable to load music file %s", Mix_GetError());
+  }
+
+
+  // @TODO use game memory, use stack for now
+  Game_State* game_state = (Game_State*)main_memory.allocate(sizeof(Game_State));
+  Audio_Buffer audio_buffer{ 0 };
+  game_state->setup(&main_memory, &audio_buffer);
+  int volume = MIX_MAX_VOLUME * 0.05f;
+  // @TODO load from setting
+  Mix_VolumeMusic(volume);
+  //// @TODO collapse this to handle music
+  if (audio_buffer.current_music != audio_library->current_music)
+  {
+    constexpr int play_forever = -1;
+    switch (audio_buffer.current_music)
+    {
+    case Music::EMPTY: {
+      Mix_FadeOutMusic(1000);
+    }break;
+    case Music::MAIN_THEME: {
+      if (Mix_PlayingMusic()) { Mix_FadeOutMusic(500); }
+
+      if (Mix_FadeInMusic(audio_library->main_theme, play_forever, 1000) == -1)
+      {
+        // @TODO better logging
+        SDL_Log("ERROR:Mix_FadeInMusic: %s\n", Mix_GetError());
+      }
+    }break;
+    case Music::BOSS_THEME: {
+      if (Mix_PlayingMusic()) { Mix_FadeOutMusic(500); }
+      if (Mix_FadeInMusic(audio_library->boss_theme, play_forever, 1000) == -1)
+      {
+        SDL_Log("ERROR::Mix_FadeInMusic: %s\n", Mix_GetError());
+      }
+    }break;
+    default:
+      break;
+    }
   }
 
   bool game_is_running = true;
   Uint32 realTickElapsed = SDL_GetTicks();
   constexpr float deltaTimeLimit = 0.05f;
 
-  Game_Mode game_mode = MODE_PONG;
-  while (game_state.is_running)
+  while (game_state->is_running)
   {
+    // For graphics
+    // @TODO use game memory, use stack for now
+    Quad_Verts quad_vertices[max_entity_count] = {};
+
+    frame_memory.clear();
     poll_input(&game_input);
    
     while (!SDL_TICKS_PASSED(SDL_GetTicks(), realTickElapsed + 16))
@@ -595,85 +653,75 @@ int main(int argc,char* argv[])
     realTickElapsed = SDL_GetTicks();
     delta_time = .0166f;
     
-    Audio_Buffer audio_buffer{0};
-    switch (game_mode)
-    {
-    case (MODE_MENU):
-    {
-      game_state.update_main_menu(delta_time, &game_input,
-        { sdl_context.window_width, sdl_context.window_height },
-        &audio_buffer);
-    }break;
-    case (MODE_PONG):
-    {
-      game_state.update_game(
-        delta_time, &game_input,
-        { sdl_context.window_width, sdl_context.window_height },
-        &audio_buffer);
-    }break;
-    default:
-      break;
-    }
+    Audio_Buffer* audio_buffer = (Audio_Buffer*)frame_memory.allocate(sizeof(Audio_Buffer));
+    Game_Screen* game_screen = (Game_Screen*)frame_memory.allocate(sizeof(Game_Screen));
 
+    game_screen->dimension = { sdl_context.window_width, sdl_context.window_height };
+    game_screen->screen_texts.Init(&frame_memory, 50);
+    game_state->update(&main_memory, &frame_memory, delta_time, &game_input,
+      audio_buffer, game_screen);
 
-    if (audio_buffer.play_tick_sound)
+    // handle SFX
+    if (audio_buffer->play_tick_sound)
     {
-      Mix_PlayChannel(-1, audio_library.impact_sound, 0);
+      Mix_PlayChannel(-1, audio_library->impact_sound, 0);
+    }   
+    if (audio_buffer->play_bop_sound)
+    {
+      Mix_PlayChannel(-1, audio_library->bop_sound, 0);
     }
 
     // Render Stuff
     glClearColor(0.1f, 0.1f, 0.1f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
+
+    // Entity Batch
     glBindVertexArray(quad_mesh.vertex_array);
     glUseProgram(shader_program);
     glUniformMatrix4fv(glGetUniformLocation(shader_program, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
+    SDL_assert(game_state->entities->size <= max_entity_count);
 
-    entity_to_quad_verts(&game_state.paddle_right, &quad_vertices[0]);
-    entity_to_quad_verts(&game_state.paddle_left, &quad_vertices[1]);
-    entity_to_quad_verts(&game_state.ball, &quad_vertices[2]);
-
-
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * game_state.entity_count, quad_vertices);
-    // TODO actual game entity count
-    glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * game_state.entity_count, GL_UNSIGNED_INT, 0);
-    glUseProgram(font_shader);
-    glUniformMatrix4fv(glGetUniformLocation(font_shader, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
-    glBindTexture(GL_TEXTURE_2D, liberation_mono_font.gl_texture);
-    
-    // @TODO clear quad vert buffer after each draw call
+    for (int i = 0; i < game_state->entities->size; i++)
     {
-      char buffer[20];
-      SDL_snprintf(buffer, 20, "%d", game_state.score_left);
-
-      Screen_Text score_text{};
-      score_text.pos = { 100, 100 };
-      score_text.text = buffer;
-      score_text.text_len = SDL_strlen(buffer);
-      screen_text_to_quad_verts(&liberation_mono_font, &score_text, quad_vertices);
+      entity_to_quad_verts(&game_state->entities->data[i], &quad_vertices[i]);
     }
 
-
-    char buffer[20];
-    SDL_snprintf(buffer, 20, "%d", game_state.score_right);
-
-    Screen_Text score_text2;
-    score_text2.pos = { 720, 100 };
-    score_text2.text = buffer;
-    score_text2.text_len = SDL_strlen(buffer);
-    screen_text_to_quad_verts(&liberation_mono_font, &score_text2, quad_vertices + score_text2.text_len);
-
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts)* (score_text2.text_len + score_text2.text_len), quad_vertices);
-    glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * (score_text2.text_len + score_text2.text_len), GL_UNSIGNED_INT, 0);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * game_state->entities->size, quad_vertices);
+    glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * game_state->entities->size, GL_UNSIGNED_INT, 0);
+    
+    // Font batch
+    glUseProgram(font_shader);
+    glUniformMatrix4fv(glGetUniformLocation(font_shader, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
+    glUniform4f(glGetUniformLocation(font_shader, "u_tint_color"), 0.9f, 0.9f, 0.9f, 1.0f);
+    glBindTexture(GL_TEXTURE_2D, liberation_mono_font.gl_texture);
+    
+    // @READ instancing for approach to handle text with different property like color ??
+    // @TODO for now we can pass it in as an vertex attribute ?? 
+    int text_width_acc = 0;
+    for (int i = 0; i < game_screen->screen_texts.size; i++)
+    {
+      screen_text_to_quad_verts(&liberation_mono_font, &game_screen->screen_texts[i], quad_vertices + text_width_acc);
+      text_width_acc += game_screen->screen_texts[i].text_len;
+    }
+    SDL_assert(text_width_acc <= max_entity_count);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts)* (text_width_acc), quad_vertices);
+    glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * (text_width_acc), GL_UNSIGNED_INT, 0);
 
    SDL_GL_SwapWindow(sdl_context.window);
   }
 
 
+  Mix_FreeChunk(audio_library->impact_sound);
+  Mix_FreeMusic(audio_library->main_theme);
+  Mix_FreeMusic(audio_library->boss_theme);
+
+   
   destroy_2d_mesh(&quad_mesh);
   glDeleteProgram(shader_program);
   glDeleteProgram(font_shader);
   glDeleteTextures(1, &liberation_mono_font.gl_texture);
   SDL_free(main_memory.base);
-	return sdl_context_destroy(&sdl_context);
+  SDL_free(frame_memory.base);
+  return sdl_context.destroy();
 }
