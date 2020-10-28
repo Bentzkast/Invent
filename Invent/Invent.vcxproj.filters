@@ -21,12 +21,12 @@
     <ClCompile Include="ExternalCode\glad\src\glad.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Code\Game.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Code\Platform.h">
+    <ClInclude Include="Code\Engine_Internal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\Engine.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

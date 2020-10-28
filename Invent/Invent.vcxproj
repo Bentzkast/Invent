@@ -88,10 +88,10 @@
   <ItemGroup>
     <ClCompile Include="Code\Entry.cpp" />
     <ClCompile Include="ExternalCode\glad\src\glad.c" />
-    <ClCompile Include="Code\Game.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Code\Platform.h" />
+    <ClInclude Include="Code\Engine_Internal.h" />
+    <ClInclude Include="Code\Engine.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

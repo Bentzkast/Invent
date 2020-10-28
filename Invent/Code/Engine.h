@@ -15,7 +15,6 @@ struct Memory_Chunk
   void clear();
 };
 
-
 template <typename T>
 struct Array {
   T* data;
@@ -30,19 +29,7 @@ struct Array {
   }
 };
 
-
-//
-//template <typename T,size_t c>
-//struct Fixed_Array {
-//  T data[c];
-//  size_t size;
-//  const size_t capacity = c;
-//  T& operator[](size_t index)
-//  {
-//    return data[index];
-//  }
-//};
-
+// @TODO change into enum
 struct Game_Input
 {
   union
@@ -53,10 +40,12 @@ struct Game_Input
       bool s_down;
       bool up_down;
       bool down_down;
+      bool right_down;
+      bool left_down;
       bool exit_down;
       bool enter_down;
     } was;
-    bool was_down[6];
+    bool was_down[8];
   };
   union
   {
@@ -66,10 +55,12 @@ struct Game_Input
       bool s_down;
       bool up_down;
       bool down_down;
+      bool right_down;
+      bool left_down;
       bool exit_down;
       bool enter_down;
     } is;
-    bool is_down[6];
+    bool is_down[8];
   };
 };
 
@@ -92,6 +83,13 @@ struct Screen_Text
   char* text;
   uint32_t text_len;
   glm::vec4 color_tint;
+};
+
+struct Sprite
+{
+  int x_shift;
+  int y_shift;
+  int sprite_sheet_id;
 };
 
 struct Game_Screen
