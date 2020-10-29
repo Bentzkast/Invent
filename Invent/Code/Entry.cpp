@@ -6,41 +6,13 @@
 // Target "PONG" with opengl sound menu particles etc ... (complete game thats it)
 // ONLY documentation!!
 
+
 template <typename T>
-void Array<T>::Init(Memory_Chunk* memory, size_t count)
+void Array<T>::init(Game_Memory* memory, size_t count)
 {
  capacity = count;
  size = 0;
- data = (T*)(memory->allocate(sizeof(T) * 50));
-}
-
-void Game_Screen::push_screen_texts(glm::vec2 pos, char* text)
-{
-  SDL_assert((screen_texts.size + 1) <= screen_texts.capacity);
-  screen_texts[screen_texts.size].pos = pos;
-  screen_texts[screen_texts.size].text = text;
-  screen_texts[screen_texts.size].text_len = SDL_strlen(text);
-  screen_texts.size++;
-}
-
-void Memory_Chunk::init(size_t size)
-{
-  base = (Uint8*)SDL_calloc(1, size); // 1 mega bytes
-  capacity = size;
-}
-
-void* Memory_Chunk::allocate(size_t size)
-{
-  SDL_assert((used + size) <= capacity);
-  void* result = base + used;
-  used += size;
-  return result;
-}
-
-void Memory_Chunk::clear()
-{
-  SDL_memset(base, 0, used);
-  used = 0;
+ data = memory->push_array<T>(count);
 }
 
 struct Vertex_2D
@@ -57,48 +29,27 @@ struct Quad_Verts
   Vertex_2D top_right;
   Vertex_2D bot_right;
 };
-static void entity_to_quad_verts(Sprite_Sheet* sprite_sheet, const Entity_2D* entity, Quad_Verts* quadVert)
+static void entity_to_quad_verts(Sprite_Sheet* sprite_sheet, const Sprite* sprite, Quad_Verts* quadVert)
 {
-  // @TODO currently using a "full alpha texture", maybe change ?
-  if (entity->type == Entity_2D::STATIC_COLOR)
-  {
-    quadVert->top_left.pos = { entity->pos.x,  entity->pos.y };
-    quadVert->bot_left.pos = { entity->pos.x,  entity->pos.y + entity->size.y };
-    quadVert->top_right.pos = { entity->pos.x + entity->size.x,  entity->pos.y };
-    quadVert->bot_right.pos = { entity->pos.x + entity->size.x,  entity->pos.y + entity->size.y };
-
     const float x_shift = sprite_sheet->resolution / sprite_sheet->width;
     const float y_shift = sprite_sheet->resolution / sprite_sheet->height;
-    const int x = 8;
-    const int y = 5;
+    const int x = sprite->offset.x;
+    const int y = sprite->offset.y;
 
+    quadVert->top_left.pos = { sprite->pos.x,  sprite->pos.y };
+    quadVert->bot_left.pos = { sprite->pos.x,  sprite->pos.y + sprite->size.y  };
+    quadVert->top_right.pos = { sprite->pos.x + sprite->size.x,  sprite->pos.y  };
+    quadVert->bot_right.pos = { sprite->pos.x + sprite->size.x,  sprite->pos.y + sprite->size.y };
+  
     quadVert->top_left.uv = { x * x_shift, y * y_shift };
     quadVert->bot_left.uv = { x * x_shift,(y + 1) * y_shift };
     quadVert->top_right.uv = { (x + 1) * x_shift, y * y_shift };
     quadVert->bot_right.uv = { (x + 1) * x_shift,(y + 1) * y_shift };
 
-    quadVert->top_left.color = entity->color;
-    quadVert->bot_left.color = entity->color;
-    quadVert->top_right.color = entity->color;
-    quadVert->bot_right.color = entity->color;
-  }
-  else if (entity->type == Entity_2D::STATIC_SPRITE)
-  {
-    const float x_shift = sprite_sheet->resolution / sprite_sheet->width;
-    const float y_shift = sprite_sheet->resolution / sprite_sheet->height;
-    const int x = entity->sprite.x_shift;
-    const int y = entity->sprite.y_shift;
-
-    quadVert->top_left = { { entity->pos.x,  entity->pos.y }, {x * x_shift, y * y_shift} };
-    quadVert->bot_left = { { entity->pos.x,  entity->pos.y + entity->size.y  }, {x * x_shift,(y + 1) * y_shift} };
-    quadVert->top_right = { { entity->pos.x + entity->size.x,  entity->pos.y  } , {(x + 1) * x_shift, y * y_shift } };
-    quadVert->bot_right = { { entity->pos.x + entity->size.x,  entity->pos.y + entity->size.y  }, {(x + 1) * x_shift,(y + 1) * y_shift} };
-  
-    quadVert->top_left.color = { .8f, .8f, .8f, 1.0f };
-    quadVert->bot_left.color = { .8f, .8f, .8f, 1.0f };
-    quadVert->top_right.color = { .8f, .8f, .8f, 1.0f };
-    quadVert->bot_right.color = { .8f, .8f, .8f, 1.0f };
-  }
+    quadVert->top_left.color = sprite->color_tint;
+    quadVert->bot_left.color = sprite->color_tint;
+    quadVert->top_right.color = sprite->color_tint;
+    quadVert->bot_right.color = sprite->color_tint;
 }
 
 struct Mesh {
@@ -106,6 +57,7 @@ struct Mesh {
   Uint32 vertex_buffer;
   Uint32 element_buffer;
 };
+
 
 struct Quad_Triangle
 {
@@ -118,7 +70,7 @@ struct Quad_Triangle
   static const int element_count = 6;
 };
 
-static void create_2d_mesh(Memory_Chunk* temp_memory, int entity_count, Mesh* mesh)
+static void create_2d_mesh(Game_Memory* temp_memory, int entity_count, Mesh* mesh)
 {
   glGenVertexArrays(1, &mesh->vertex_array);
   glGenBuffers(1, &mesh->vertex_buffer);
@@ -129,7 +81,7 @@ static void create_2d_mesh(Memory_Chunk* temp_memory, int entity_count, Mesh* me
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->element_buffer);
 
   // @TODO proper array data struct
-  Quad_Triangle* quad_triangles_array = (Quad_Triangle*)temp_memory->allocate(entity_count * sizeof(Quad_Triangle));
+  Quad_Triangle* quad_triangles_array = temp_memory->push_array<Quad_Triangle>(entity_count);
   for (int i = 0; i < entity_count; i++)
   {
     quad_triangles_array[i].one = 0 + i * 4;
@@ -247,7 +199,7 @@ static bool font_character_create(const char* filepath, const int font_size, Fon
   FT_Done_FreeType(ft);
 }
 
-static void screen_text_to_quad_verts(const Font_Character* font_characters, const Screen_Text* screen_text, Quad_Verts* quad_vertices)
+static void screen_text_to_quad_verts(const Font_Character* font_characters, const Text* screen_text, Quad_Verts* quad_vertices)
 {
   int text_pos_x = screen_text->pos.x;
   for (int i = 0; i < screen_text->text_len; i++)
@@ -279,6 +231,51 @@ static void screen_text_to_quad_verts(const Font_Character* font_characters, con
   }
 }
 
+const char* vertex_shader_source = "#version 330 core\n"
+"layout (location = 0) in vec2 a_pos;"
+"layout (location = 1) in vec2 a_uv;"
+"layout (location = 2) in vec4 a_color;"
+"out vec2 v_tex_coord;"
+"out vec4 v_tint_color;"
+"uniform mat4 u_projection_mat;"
+"void main()"
+"{"
+"   gl_Position = u_projection_mat * vec4(a_pos.x, a_pos.y, 0.0, 1.0);"
+"   v_tex_coord = a_uv;"
+"   v_tint_color = a_color;"
+"}";
+const char* fragment_shader_source = "#version 330 core\n"
+"out vec4 FragColor;"
+"in vec2 v_tex_coord;"
+"in vec4 v_tint_color;"
+"uniform sampler2D u_texture;"
+"void main()"
+"{"
+"   FragColor = v_tint_color * texture(u_texture, v_tex_coord);" // WHITE
+//"   FragColor = v_tint_color;" // WHITE
+"}";
+
+const char* font_vertex_shader_source = "#version 330 core\n"
+"layout (location = 0) in vec2 a_pos;"
+"layout (location = 1) in vec2 a_uv;"
+"out vec2 v_tex_coord;"
+"uniform mat4 u_projection_mat;"
+"void main()"
+"{"
+"   gl_Position = u_projection_mat * vec4(a_pos.x, a_pos.y, 0.0, 1.0);"
+"   v_tex_coord = a_uv;"
+"}";
+const char* font_fragment_shader_source = "#version 330 core\n"
+"in vec2 v_tex_coord;"
+"out vec4 FragColor;"
+"uniform vec4 u_tint_color;"
+"uniform sampler2D u_texture;"
+"void main()"
+"{"
+"   vec4 sampled = vec4(1.0, 1.0, 1.0, texture(u_texture, v_tex_coord).r);" // only sample alpha
+"   FragColor = u_tint_color * sampled;" // WHITE
+"}";
+
 int main(int argc,char* argv[])
 {
   SDL_Context sdl_context{};
@@ -292,94 +289,52 @@ int main(int argc,char* argv[])
   glEnable(GL_CULL_FACE); // Face culling
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-  Memory_Chunk main_memory{};
-  main_memory.init(1 * 1024 * 1024); // 1 mb
-  Memory_Chunk frame_memory{};
-  frame_memory.init(1 * 1024 * 1024); // 1 mb
+  Memory_Chunk persist_mem;
+  persist_mem.init(5 * 1024 * 1024);
+  Memory_Chunk frame_mem;
+  frame_mem.init(5 * 1024 * 1024);
+  Game_Context game_context;
+  {
+    game_context.dimension.x = sdl_context.window_width;
+    game_context.dimension.y = sdl_context.window_height;
+    game_context.persist_memory.memory_chunk = &persist_mem;
+    game_context.frame_memory.memory_chunk = &frame_mem;
+    SDL_memset(&game_context.control, 0, sizeof(game_context.control));
+  }
 
   glm::mat4 projection_matrix = glm::ortho(0.0f, (float)sdl_context.window_width, (float)sdl_context.window_height, 0.0f);
 
-  const char* vertex_shader_source = "#version 330 core\n"
-    "layout (location = 0) in vec2 a_pos;"
-    "layout (location = 1) in vec2 a_uv;"
-    "layout (location = 2) in vec4 a_color;"
-    "out vec2 v_tex_coord;"
-    "out vec4 v_tint_color;"
-    "uniform mat4 u_projection_mat;"
-    "void main()"
-    "{"
-    "   gl_Position = u_projection_mat * vec4(a_pos.x, a_pos.y, 0.0, 1.0);"
-    "   v_tex_coord = a_uv;"
-    "   v_tint_color = a_color;"
-    "}";
-  const char* fragment_shader_source = "#version 330 core\n"
-    "out vec4 FragColor;"
-    "in vec2 v_tex_coord;"
-    "in vec4 v_tint_color;"
-    "uniform sampler2D u_texture;"
-    "void main()"
-    "{"
-    "   FragColor = vec4(v_tint_color.xyz , texture(u_texture, v_tex_coord).r);" // WHITE
-    //"   FragColor = v_tint_color;" // WHITE
-    "}";
-
   Uint32 shader_program = load_shader_2d(vertex_shader_source, fragment_shader_source);
   SDL_Log("%d", glGetError());
-
-  const char* font_vertex_shader_source = "#version 330 core\n"
-    "layout (location = 0) in vec2 a_pos;"
-    "layout (location = 1) in vec2 a_uv;"
-    "out vec2 v_tex_coord;"
-    "uniform mat4 u_projection_mat;"
-    "void main()"
-    "{"
-    "   gl_Position = u_projection_mat * vec4(a_pos.x, a_pos.y, 0.0, 1.0);"
-    "   v_tex_coord = a_uv;"
-    "}";
-  const char* font_fragment_shader_source = "#version 330 core\n"
-    "in vec2 v_tex_coord;"
-    "out vec4 FragColor;"
-    "uniform vec4 u_tint_color;"
-    "uniform sampler2D u_texture;"
-    "void main()"
-    "{"
-    "   vec4 sampled = vec4(1.0, 1.0, 1.0, texture(u_texture, v_tex_coord).r);" // only sample alpha
-    "   FragColor = u_tint_color * sampled;" // WHITE
-    "}";
 
   Uint32 font_shader = load_shader_2d(font_vertex_shader_source, font_fragment_shader_source);
 
   constexpr int max_entity_count = 1000;
   Mesh quad_mesh;
-  create_2d_mesh(&frame_memory, max_entity_count, &quad_mesh);
-  frame_memory.clear();
+  create_2d_mesh(&game_context.frame_memory, max_entity_count, &quad_mesh);
+  game_context.frame_memory.memory_chunk->clear();
 
   Sprite_Sheet one_bit_sprites;
   one_bit_sprites.load_sprite_sheet("Resources/Texture/monochrome_transparent_packed.png");
 
   // @TODO use game memory, use stack for now
-  Game_Input game_input = {};
   Font_Character liberation_mono_font = {};
   font_character_create("Resources/Font/liberation_mono.ttf", 40, &liberation_mono_font);
 
   // AUDIO
   // @TODO music library module
-  Audio_Library* audio_library = (Audio_Library *) main_memory.allocate(sizeof(Audio_Library));
+  Audio_Library* audio_library = game_context.persist_memory.push<Audio_Library>();
   audio_library->load_all();
 
   // @TODO use game memory, use stack for now
-  Game_State* game_state = (Game_State*)main_memory.allocate(sizeof(Game_State));
-  Audio_Buffer audio_buffer{ 0 };
-  game_state->setup(&main_memory, &audio_buffer);
-  int volume = MIX_MAX_VOLUME * 0.05f;
-  // @TODO load from setting
-  Mix_VolumeMusic(volume);
+  The_Game the_game;
+  auto output = the_game.awake(&game_context);
+
   //// @TODO collapse this to handle music
-  if (audio_buffer.current_music != audio_library->current_music)
+  if (output->audio_buffer.current_music != audio_library->current_music)
   {
     constexpr int play_forever = -1;
-    switch (audio_buffer.current_music)
+    switch (output->audio_buffer.current_music)
     {
     case Music::EMPTY: {
       Mix_FadeOutMusic(1000);
@@ -405,19 +360,19 @@ int main(int argc,char* argv[])
     }
   }
 
-  bool game_is_running = true;
+
   Uint32 realTickElapsed = SDL_GetTicks();
   constexpr float deltaTimeLimit = 0.05f;
 
-  while (game_state->is_running)
+  while (output->continue_running)
   {
-    // For graphics
-    // @TODO use game memory, use stack for now
-    Quad_Verts quad_vertices[max_entity_count] = {};
+    frame_mem.clear();
+    const int max_entity_count = 200;
+    Array<Quad_Verts> quad_vertices;
+    quad_vertices.init(&game_context.frame_memory, max_entity_count);
 
-    frame_memory.clear();
-    poll_input(&game_input);
-   
+    poll_input(&game_context.control);
+    
     while (!SDL_TICKS_PASSED(SDL_GetTicks(), realTickElapsed + 16))
     {
       if (!SDL_TICKS_PASSED(SDL_GetTicks(), realTickElapsed + 18))
@@ -425,74 +380,73 @@ int main(int argc,char* argv[])
         SDL_Delay(1);
       }
     }
-    // Frame Upper Cap 60
+
+    // Frame Upper Cap 60 
+
     float delta_time = (SDL_GetTicks() - realTickElapsed) * 0.001f; // Cast to second
     if (delta_time > deltaTimeLimit) // Prevent to fly away when paused
     {
       delta_time = deltaTimeLimit;
     }
     realTickElapsed = SDL_GetTicks();
-    delta_time = .0166f;
+    game_context.delta_time = .0166f;
     
-    Audio_Buffer* audio_buffer = (Audio_Buffer*)frame_memory.allocate(sizeof(Audio_Buffer));
-    Game_Screen* game_screen = (Game_Screen*)frame_memory.allocate(sizeof(Game_Screen));
-
-    game_screen->dimension = { sdl_context.window_width, sdl_context.window_height };
-    game_screen->screen_texts.Init(&frame_memory, 50);
-    game_state->update(&main_memory, &frame_memory, delta_time, &game_input,
-      audio_buffer, game_screen);
+    output = the_game.update(&game_context);
 
     // handle SFX
-    if (audio_buffer->play_tick_sound)
+    if (output->audio_buffer.play_tick_sound)
     {
       Mix_PlayChannel(-1, audio_library->impact_sound, 0);
     }   
-    if (audio_buffer->play_bop_sound)
+    if (output->audio_buffer.play_bop_sound)
     {
       Mix_PlayChannel(-1, audio_library->bop_sound, 0);
     }
+
 
     // Render Stuff
     glClearColor(0.1f, 0.1f, 0.1f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Test batch
-    glBindVertexArray(quad_mesh.vertex_array);
-    glUseProgram(shader_program);
-
     // Entity Batch
     glBindVertexArray(quad_mesh.vertex_array);
-    glUseProgram(shader_program);
-    glUniformMatrix4fv(glGetUniformLocation(shader_program, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
-    glBindTexture(GL_TEXTURE_2D, one_bit_sprites.gl_texture);
-    SDL_assert(game_state->entities->size <= max_entity_count);
-
-    for (int i = 0; i < game_state->entities->size; i++)
+    if(output->sprite_batch)
     {
-      entity_to_quad_verts(&one_bit_sprites, &game_state->entities->data[i], &quad_vertices[i]);
+      glUseProgram(shader_program);
+      glUniformMatrix4fv(glGetUniformLocation(shader_program, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
+      glBindTexture(GL_TEXTURE_2D, one_bit_sprites.gl_texture);
+      SDL_assert(output->sprite_batch->size <= max_entity_count);
+
+      for (int i = 0; i < output->sprite_batch->size; i++)
+      {
+        entity_to_quad_verts(&one_bit_sprites, &(output->sprite_batch->data[i]), &quad_vertices[i]);
+      }
+
+      glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * output->sprite_batch->size, quad_vertices.data);
+      glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * output->sprite_batch->size, GL_UNSIGNED_INT, 0);
     }
 
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * game_state->entities->size, quad_vertices);
-    glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * game_state->entities->size, GL_UNSIGNED_INT, 0);
-    
-    // Font batch
-    glUseProgram(font_shader);
-    glUniformMatrix4fv(glGetUniformLocation(font_shader, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
-    // @TODO move into per vertex color
-    glUniform4f(glGetUniformLocation(font_shader, "u_tint_color"), 0.9f, 0.9f, 0.9f, 1.0f);
-    glBindTexture(GL_TEXTURE_2D, liberation_mono_font.gl_texture);
-    
-    // @READ instancing for approach to handle text with different property like color ??
-    // @TODO for now we can pass it in as an vertex attribute ?? 
-    int text_width_acc = 0;
-    for (int i = 0; i < game_screen->screen_texts.size; i++)
+    if (output->text_batch)
     {
-      screen_text_to_quad_verts(&liberation_mono_font, &game_screen->screen_texts[i], quad_vertices + text_width_acc);
-      text_width_acc += game_screen->screen_texts[i].text_len;
+      // Text batch
+      glUseProgram(font_shader);
+      glUniformMatrix4fv(glGetUniformLocation(font_shader, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
+      // @TODO move into per vertex color
+      glUniform4f(glGetUniformLocation(font_shader, "u_tint_color"), 0.9f, 0.9f, 0.9f, 1.0f);
+      glBindTexture(GL_TEXTURE_2D, liberation_mono_font.gl_texture);
+
+      // @READ instancing for approach to handle text with different property like color ??
+      // @TODO for now we can pass it in as an vertex attribute ?? 
+      int text_width_acc = 0;
+      for (int i = 0; i < output->text_batch->size; i++)
+      {
+        screen_text_to_quad_verts(&liberation_mono_font, &(output->text_batch->data[i]), quad_vertices.data + text_width_acc);
+        text_width_acc += output->text_batch->data->text_len;
+      }
+      SDL_assert(text_width_acc <= max_entity_count);
+      glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * (text_width_acc), quad_vertices.data);
+      glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * (text_width_acc), GL_UNSIGNED_INT, 0);
     }
-    SDL_assert(text_width_acc <= max_entity_count);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts)* (text_width_acc), quad_vertices);
-    glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * (text_width_acc), GL_UNSIGNED_INT, 0);
 
    SDL_GL_SwapWindow(sdl_context.window);
   }
@@ -508,7 +462,8 @@ int main(int argc,char* argv[])
   glDeleteProgram(font_shader);
   glDeleteTextures(1, &liberation_mono_font.gl_texture);
   glDeleteTextures(1, &one_bit_sprites.gl_texture);
-  SDL_free(main_memory.base);
-  SDL_free(frame_memory.base);
+
+  persist_mem.free();
+  frame_mem.free();
   return sdl_context.destroy();
 }

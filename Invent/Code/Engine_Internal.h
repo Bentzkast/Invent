@@ -56,3 +56,15 @@ struct Sprite_Sheet
 
   bool load_sprite_sheet(const char* filepath);
 };
+
+struct Memory_Chunk
+{
+  size_t capacity;
+  size_t used;
+  uint8_t* base;
+
+  void init(size_t size);
+  void* allocate(size_t size);
+  void clear();
+  void free();
+};

@@ -4,15 +4,15 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <SDL.h>
 
-struct Memory_Chunk
+// Function Type...
+struct Game_Memory
 {
-  size_t capacity;
-  size_t used;
-  uint8_t* base;
-
-  void init(size_t size);
-  void* allocate(size_t size);
-  void clear();
+  struct Memory_Chunk* memory_chunk;
+  //void* push(size_t size);
+  template <typename T>
+  T* push();
+  template <typename T>
+  T* push_array(size_t count);
 };
 
 template <typename T>
@@ -21,7 +21,7 @@ struct Array {
   size_t size;
   size_t capacity;
 
-  void Init(Memory_Chunk* memory, size_t count);
+  void init(Game_Memory* memory, size_t count);
 
   T& operator[](size_t index)
   {
@@ -30,14 +30,12 @@ struct Array {
 };
 
 // @TODO change into enum
-struct Game_Input
+struct Game_Control
 {
   union
   {
     struct Was
     {
-      bool w_down;
-      bool s_down;
       bool up_down;
       bool down_down;
       bool right_down;
@@ -45,14 +43,12 @@ struct Game_Input
       bool exit_down;
       bool enter_down;
     } was;
-    bool was_down[8];
+    bool was_down[6];
   };
   union
   {
     struct Is
     {
-      bool w_down;
-      bool s_down;
       bool up_down;
       bool down_down;
       bool right_down;
@@ -60,7 +56,7 @@ struct Game_Input
       bool exit_down;
       bool enter_down;
     } is;
-    bool is_down[8];
+    bool is_down[6];
   };
 };
 
@@ -77,26 +73,49 @@ struct Audio_Buffer
   Music current_music;
 };
 
-struct Screen_Text
+struct Text
 {
   glm::vec2 pos;
+  //@ TODO to array
   char* text;
   uint32_t text_len;
   glm::vec4 color_tint;
 };
 
+
 struct Sprite
 {
-  int x_shift;
-  int y_shift;
+  glm::vec2 pos;
+  glm::vec2 size;
+  glm::vec2 offset;
+  glm::vec4 color_tint;
+  int layer_order;
   int sprite_sheet_id;
 };
 
-struct Game_Screen
+struct Game_Context
 {
   glm::vec2 dimension;
-  Array<Screen_Text> screen_texts;
+  float delta_time;
+  Game_Control control;
+  Game_Memory persist_memory;
+  Game_Memory frame_memory;
+};
 
-  void push_screen_texts(glm::vec2 pos, char* text);
+struct Game_Output
+{
+  // @NOTE Immediate mode so dont draw the text is hidden ...
+  // This pointer should be pointed at the right stuff by the game impl
+  bool continue_running;
+  Array<Text>* text_batch;
+  Array<Sprite>* sprite_batch;
+  Audio_Buffer audio_buffer;
+};
+
+struct The_Game
+{
+  struct Game_State* state;
+  Game_Output* awake(Game_Context* context);
+  Game_Output* update(Game_Context* context);
 };
 

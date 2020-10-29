@@ -1,4 +1,43 @@
 #include "Engine_Internal.h"
+#include "Engine.h"
+
+void Memory_Chunk::init(size_t size)
+{
+  base = (Uint8*)SDL_calloc(1, size);
+  capacity = size;
+  used = 0;
+}
+
+void* Memory_Chunk::allocate(size_t size)
+{
+  SDL_assert((used + size) <= capacity);
+  void* result = base + used;
+  used += size;
+  return result;
+}
+
+void Memory_Chunk::clear()
+{
+  SDL_memset(base, 0, used);
+  used = 0;
+}
+
+void Memory_Chunk::free()
+{
+  SDL_free(base);
+}
+
+template<typename T>
+T* Game_Memory::push()
+{
+  return (T*)memory_chunk->allocate(sizeof(T));
+}
+
+template<typename T>
+T* Game_Memory::push_array(size_t count)
+{
+  return (T*)memory_chunk->allocate(sizeof(T) * count);
+}
 
 bool SDL_Context::create()
 {
@@ -17,7 +56,7 @@ bool SDL_Context::create()
   }
 
   window = SDL_CreateWindow(
-    "PONG",
+    "Micro Realm",
     SDL_WINDOWPOS_CENTERED,
     SDL_WINDOWPOS_CENTERED,
     window_width,
@@ -84,11 +123,11 @@ int SDL_Context::destroy()
   return 0;
 }
 
-static void poll_input(Game_Input* game_input)
+static void poll_input(Game_Control* game_input)
 {
   SDL_Event sdl_event;
-  // move was to is
-  memcpy_s(&game_input->was, sizeof(game_input->was), &game_input->is, sizeof(game_input->is));
+  // move is to was
+  SDL_memcpy(&game_input->was, &game_input->is, sizeof(game_input->is));
 
   while (SDL_PollEvent(&sdl_event))
   {
@@ -106,7 +145,7 @@ static void poll_input(Game_Input* game_input)
       {
       case SDL_SCANCODE_ESCAPE:
       {
-        game_input->is.exit_down = true;
+        game_input->is.exit_down = is_down;
       }break;
       case SDL_SCANCODE_1:
       {
@@ -120,16 +159,6 @@ static void poll_input(Game_Input* game_input)
       {
 
       }break;
-      case SDL_SCANCODE_W:
-      {
-        game_input->is.w_down = is_down;
-        //SDL_Log("SDL_SCANCODE_W %s", is_s_down ? "true" : "false");
-      } break;
-      case SDL_SCANCODE_S:
-      {
-        game_input->is.s_down = is_down;
-        //SDL_Log("SDL_SCANCODE_S %s", is_s_down ? "true" : "false");
-      } break;
       case SDL_SCANCODE_UP:
       {
         game_input->is.up_down = is_down;
@@ -148,6 +177,7 @@ static void poll_input(Game_Input* game_input)
       } break;
       case SDL_SCANCODE_RETURN:
       {
+        SDL_Log("Return");
         game_input->is.enter_down = is_down;
       }break;
       default:
@@ -235,6 +265,10 @@ bool Audio_Library::load_all()
     SDL_Log("Unable to load music file %s", Mix_GetError());
     result = false;
   }
+
+  int volume = MIX_MAX_VOLUME * 0.05f;
+  // @TODO load from setting
+  Mix_VolumeMusic(volume);
 
   return result;
 }
