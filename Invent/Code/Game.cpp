@@ -1,6 +1,6 @@
 #include "Engine.h"
 
-void array_push(Array<Text>* texts, glm::vec2 pos, char* text)
+static void array_push(Array<Text>* texts, glm::vec2 pos, char* text)
 {
   SDL_assert((texts->size + 1) <= texts->capacity);
   int i = texts->size;
@@ -11,7 +11,7 @@ void array_push(Array<Text>* texts, glm::vec2 pos, char* text)
   texts->size++;
 }
 
-Sprite* sprite_push(Array<Sprite>* sprite, glm::vec2 pos, glm::vec2 size, glm::vec2 offset, glm::vec4 color)
+static Sprite* sprite_push(Array<Sprite>* sprite, glm::vec2 pos, glm::vec2 size, glm::vec2 offset, glm::vec4 color)
 {
   SDL_assert((sprite->size + 1) <= sprite->capacity);
   int i = sprite->size;
@@ -31,10 +31,20 @@ enum class Game_Mode
   COUNT
 };
 
+struct Formation
+{
+  glm::vec2 pos;
+  glm::vec2 vel;
+  glm::ivec2 dimension;
+  glm::vec2 direction;
+  int filled_slot;
+};
+
 struct Unit
 {
   glm::vec2 base_pos;
   Sprite* sprite;
+  Formation* formation;
 };
 
 struct Game_Play
@@ -43,24 +53,52 @@ struct Game_Play
   Array<Sprite> sprites;
   Array<Text> texts;
 
-  Unit player;
+  // @TODO start army formation
+  // @TODO amry vs army
+  Sprite* cursor;
+  Array<Unit> army_one;
+  Array<Unit> grasses;
+
+  Formation formation;
+  float rot;
+  glm::vec2 target_pos;
 
   void awake(Game_Context* context, Game_Output* output)
   {
     sprites.init(&context->persist_memory, 200);
     texts.init(&context->persist_memory, 10);
 
-    sprite_push(&sprites, { 10, 10 }, { 500, 500 }, { 8, 5 }, { 0.2f,0.4f, 0.2f,1.0f });
+    army_one.init(&context->persist_memory, 10);
+    grasses.init(&context->persist_memory, 20);
 
-    //for (int y = 0; y < 10; y++)
-    //{
-    //  for (int x = 0; x < 10; x++)
-    //  {
-    //    sprite_push(&sprites, { x * 48, y * 48}, { 48, 48 }, { x, y }, { 0.9f,0.8f, 0.8f,1.0f });
-    //  }
-    //}
-    player.base_pos = { 100, 100 };
-    player.sprite = sprite_push(&sprites, { player.base_pos.x * 48, player.base_pos.y * 48 }, { 48, 48 }, { 27, 0 }, { 0.9f,0.8f, 0.8f,1.0f });
+    cursor = sprite_push(&sprites, { 0, 0 }, { 48, 48 }, { 36, 10 }, { 0.9f,0.8f, 0.8f,1.0f });
+    cursor->layer_order = context->dimension.y;
+    target_pos = { 500 , 500 };
+
+    for (size_t i = 0; i < 10; i++)
+    {
+      grasses[i].base_pos = { rand() % (int)context->dimension.x, rand() % (int)context->dimension.y };
+      grasses[i].sprite = sprite_push(&sprites, grasses[i].base_pos, { 48, 48 }, { 0, 2 }, { 0.9f,0.8f, 0.8f,1.0f });
+      grasses[i].sprite->layer_order = grasses[i].base_pos.y;
+      grasses.size++;
+    }
+    for (int y = 0; y < 10; y++)
+    {
+      army_one[y].base_pos = { 0, 0 };
+      army_one[y].sprite = sprite_push(&sprites, army_one[y].base_pos, { 48, 48 }, { 27, 0 }, { 0.9f,0.8f, 0.8f,1.0f });
+      // TODO max formation size???
+      army_one[y].formation = &formation;
+      army_one.size++;
+    }
+
+    rot = 0;
+
+    formation.pos = { 500, 500 };
+    formation.vel = { 0, 0 };
+    formation.direction.x = glm::cos(glm::radians(rot));
+    formation.direction.y = -glm::cos(glm::radians(rot));
+    formation.dimension = { 5, 2 };
+    formation.filled_slot = 0;
   }
   void start(Game_Context* context, Game_Output* output)
   {
@@ -77,28 +115,61 @@ struct Game_Play
       SDL_Log("MAIN_MENU");
       return Game_Mode::MAIN_MENU;
     }
+
+    cursor->pos = control->mouse_pos;
     //SDL_Log("%f", context->delta_time);
     auto dt = context->delta_time;
-    auto move_speed = 480 * dt;
-    if (control->is.left_down && control->was.left_down)
+    auto move_speed = 240 * dt;
+
+
+    if (control->is.left_mouse && !control->was.left_mouse)
     {
-      player.base_pos.x -= move_speed;
+      target_pos = cursor->pos;
     }
-    if (control->is.right_down && control->was.right_down)
+    rot += dt * 200;
+    auto dir = glm::normalize(target_pos - formation.pos);
+    //if (glm::length(target_pos - formation.pos) > 10.0f)
+    //{
+    //  formation.direction = dir; //hmmm
+    //  formation.pos += move_speed * formation.direction;
+    //}
+    formation.direction.x = glm::cos(glm::radians(rot));
+    formation.direction.y = -glm::sin(glm::radians(rot));
+    //formation.pos += formation.vel * dt;
+    // clear formation slots
+    formation.filled_slot = 0;
+
+
+    // fill in formation slots
+    // @TODO readjust when taking sub strenght
+    // @TODO stutter problem??
+    for (size_t i = 0; i < army_one.size; i++)
     {
-      player.base_pos.x += move_speed;
-    }
-    if (control->is.down_down && control->was.down_down)
-    {
-      player.base_pos.y += move_speed;
-    }
-    if (control->is.up_down && control->was.up_down)
-    {
-      player.base_pos.y -= move_speed;
+      auto formation = army_one[i].formation;
+      auto perp = glm::normalize(perpendicular_clockwise(formation->direction));
+      auto back = glm::normalize(-formation->direction);
+       
+      int pos_in_row = formation->filled_slot % formation->dimension.x;
+      int pos_in_col = formation->filled_slot / formation->dimension.x;
+      auto pos = formation->pos - perp * 48.0f * (float)formation->dimension.x / 2.0f + perp * 24.0f;
+      army_one[i].base_pos = pos + perp * 48.0f * (float)pos_in_row + back * 48.0f * (float)pos_in_col;
+      formation->filled_slot++;
     }
 
     // Sync all sprites
-    player.sprite->pos = player.base_pos;
+    for (int i = 0; i < army_one.size; i++)
+    {
+      army_one[i].sprite->pos.y = army_one[i].base_pos.y - army_one[i].sprite->size.y;
+      army_one[i].sprite->pos.x = army_one[i].base_pos.x - army_one[i].sprite->size.x / 2.0 ;
+      army_one[i].sprite->layer_order = army_one[i].sprite->pos.y;
+    }
+
+    for (int i = 0; i < army_one.size; i++)
+    {
+      grasses[i].sprite->pos.y = grasses[i].base_pos.y - grasses[i].sprite->size.y;
+      grasses[i].sprite->pos.x = grasses[i].base_pos.x - grasses[i].sprite->size.x / 2.0f;
+      grasses[i].sprite->layer_order = grasses[i].sprite->pos.y;
+    }
 
     return Game_Mode::GAME_PLAY;
   }
@@ -118,18 +189,23 @@ struct Main_Menu
   Array<Sprite> sprites;
   Array<Text> texts;
   Sprite* selection_sprite;
+  Sprite* cursor;
+
 
   void awake(Game_Context* context, Game_Output* game_output)
   {
     // Push Selection production pointer
     current_selection = Selection::PLAY;
 
-    sprites.init(&context->persist_memory, 1);
+    sprites.init(&context->persist_memory, 2);
     texts.init(&context->persist_memory, 10);
 
 
     // awake can be multiple time ... maybe also setup start
     selection_sprite = sprite_push(&sprites, { 0, 0 }, { 25, 25 }, { 8, 5 }, { 0.9f,0.9f, 0.9f,1.0f });
+    cursor = sprite_push(&sprites, { 0, 0 }, { 48, 48 }, { 36, 10 }, { 0.9f,0.8f, 0.8f,1.0f });
+    cursor->layer_order = context->dimension.y;
+
     constexpr int buffer_size = 20;
 
 
@@ -174,6 +250,7 @@ struct Main_Menu
     output->text_batch = &texts;
     output->sprite_batch = &sprites;
     Game_Control* control = &context->control;
+    cursor->pos = control->mouse_pos;
 
     if (control->is.down_down && !control->was.down_down)
     {

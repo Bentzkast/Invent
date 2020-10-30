@@ -8,7 +8,7 @@
 struct Game_Memory
 {
   struct Memory_Chunk* memory_chunk;
-  //void* push(size_t size);
+
   template <typename T>
   T* push();
   template <typename T>
@@ -42,8 +42,10 @@ struct Game_Control
       bool left_down;
       bool exit_down;
       bool enter_down;
+      bool left_mouse;
+      bool right_mouse;
     } was;
-    bool was_down[6];
+    bool was_down[8];
   };
   union
   {
@@ -55,9 +57,13 @@ struct Game_Control
       bool left_down;
       bool exit_down;
       bool enter_down;
+      bool left_mouse;
+      bool right_mouse;
     } is;
-    bool is_down[6];
+    bool is_down[8];
   };
+
+  glm::ivec2 mouse_pos;
 };
 
 enum class Music {
@@ -119,3 +125,12 @@ struct The_Game
   Game_Output* update(Game_Context* context);
 };
 
+inline static glm::vec2 perpendicular_clockwise(glm::vec2 v)
+{
+  return glm::vec2(v.y, -v.x);
+}
+
+inline static glm::vec2 perpendicular_counter_clockwise(glm::vec2 v)
+{
+  return glm::vec2(-v.y, v.x);
+}

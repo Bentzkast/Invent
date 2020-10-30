@@ -315,7 +315,7 @@ int main(int argc,char* argv[])
   game_context.frame_memory.memory_chunk->clear();
 
   Sprite_Sheet one_bit_sprites;
-  one_bit_sprites.load_sprite_sheet("Resources/Texture/monochrome_transparent_packed.png");
+  one_bit_sprites.load_sprite_sheet("Resources/Texture/colored_transparent_packed.png");
 
   // @TODO use game memory, use stack for now
   Font_Character liberation_mono_font = {};
@@ -417,9 +417,19 @@ int main(int argc,char* argv[])
       glBindTexture(GL_TEXTURE_2D, one_bit_sprites.gl_texture);
       SDL_assert(output->sprite_batch->size <= max_entity_count);
 
-      for (int i = 0; i < output->sprite_batch->size; i++)
+      // Sort
+      entity_to_quad_verts(&one_bit_sprites, &(output->sprite_batch->data[0]), &quad_vertices[0]);
+      for (int i = 1; i < output->sprite_batch->size; i++)
       {
-        entity_to_quad_verts(&one_bit_sprites, &(output->sprite_batch->data[i]), &quad_vertices[i]);
+        int order = output->sprite_batch->data[i].layer_order;
+        int j = i - 1;
+
+        while (j >= 0 && output->sprite_batch->data[j].layer_order > order)
+        {
+          quad_vertices[j + 1] = quad_vertices[j];
+          j--;
+        }
+        entity_to_quad_verts(&one_bit_sprites, &(output->sprite_batch->data[i]), &quad_vertices[j + 1]);
       }
 
       glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * output->sprite_batch->size, quad_vertices.data);

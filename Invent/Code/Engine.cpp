@@ -54,7 +54,7 @@ bool SDL_Context::create()
     SDL_Log("Unable to initialize SDL mixer: %s", Mix_GetError());
     return false;
   }
-
+  SDL_ShowCursor(0);
   window = SDL_CreateWindow(
     "Micro Realm",
     SDL_WINDOWPOS_CENTERED,
@@ -125,6 +125,7 @@ int SDL_Context::destroy()
 
 static void poll_input(Game_Control* game_input)
 {
+  SDL_GetMouseState(&game_input->mouse_pos.x, &game_input->mouse_pos.y);
   SDL_Event sdl_event;
   // move is to was
   SDL_memcpy(&game_input->was, &game_input->is, sizeof(game_input->is));
@@ -184,6 +185,19 @@ static void poll_input(Game_Control* game_input)
         break;
       }
     } break;
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+    {
+      bool is_down = sdl_event.type == SDL_MOUSEBUTTONDOWN ? true : false;
+      if (SDL_BUTTON(sdl_event.button.button) & SDL_BUTTON(SDL_BUTTON_LEFT))
+      {
+        game_input->is.left_mouse = is_down;
+      }
+      if (SDL_BUTTON(sdl_event.button.button) & SDL_BUTTON(SDL_BUTTON_RIGHT))
+      {
+        game_input->is.right_mouse = is_down;
+      }
+    }break;
     default:
       break;
     }
