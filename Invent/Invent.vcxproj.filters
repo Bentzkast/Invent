@@ -15,19 +15,31 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Code\Entry.cpp">
+    <ClCompile Include="ExternalCode\glad\src\glad.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ExternalCode\glad\src\glad.c">
+    <ClCompile Include="Code\Main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\Module_SDL.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\Module_Memory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\Module_Game.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Code\Engine_Internal.h">
+    <ClInclude Include="Code\Module_SDL.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Code\Engine.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Code\Module_Memory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\Module_Game.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

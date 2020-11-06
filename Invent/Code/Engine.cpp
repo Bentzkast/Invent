@@ -1,14 +1,14 @@
 #include "Engine_Internal.h"
 #include "Engine.h"
 
-void Memory_Chunk::init(size_t size)
+void Game_Memory::init(size_t size)
 {
   base = (Uint8*)SDL_calloc(1, size);
   capacity = size;
   used = 0;
 }
 
-void* Memory_Chunk::allocate(size_t size)
+void* Game_Memory::allocate(size_t size)
 {
   SDL_assert((used + size) <= capacity);
   void* result = base + used;
@@ -16,13 +16,13 @@ void* Memory_Chunk::allocate(size_t size)
   return result;
 }
 
-void Memory_Chunk::clear()
+void Game_Memory::clear()
 {
   SDL_memset(base, 0, used);
   used = 0;
 }
 
-void Memory_Chunk::free()
+void Game_Memory::free()
 {
   SDL_free(base);
 }
@@ -306,8 +306,8 @@ bool Sprite_Sheet::load_sprite_sheet(const char* filepath)
   // texture wrapping
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   int format = GL_RGB;
   if (color_channel == 4)
   {

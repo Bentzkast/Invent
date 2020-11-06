@@ -86,12 +86,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Code\Entry.cpp" />
+    <ClCompile Include="Code\Main.cpp" />
+    <ClCompile Include="Code\Module_Game.cpp" />
+    <ClCompile Include="Code\Module_Memory.cpp" />
+    <ClCompile Include="Code\Module_SDL.cpp" />
     <ClCompile Include="ExternalCode\glad\src\glad.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Code\Engine_Internal.h" />
-    <ClInclude Include="Code\Engine.h" />
+    <ClInclude Include="Code\Module_Game.h" />
+    <ClInclude Include="Code\Module_Memory.h" />
+    <ClInclude Include="Code\Module_SDL.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

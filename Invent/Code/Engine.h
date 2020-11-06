@@ -7,7 +7,7 @@
 // Function Type...
 struct Game_Memory
 {
-  struct Memory_Chunk* memory_chunk;
+  struct Game_Memory* memory_chunk;
 
   template <typename T>
   T* push();
@@ -88,14 +88,20 @@ struct Text
   glm::vec4 color_tint;
 };
 
-
 struct Sprite
 {
+  enum Layer
+  {
+    WORLD,
+    UI,
+    COUNT
+  };
   glm::vec2 pos;
   glm::vec2 size;
   glm::vec2 offset;
   glm::vec4 color_tint;
-  int layer_order;
+  Layer layer;
+  bool flipped;
   int sprite_sheet_id;
 };
 

@@ -41,10 +41,20 @@ static void entity_to_quad_verts(Sprite_Sheet* sprite_sheet, const Sprite* sprit
     quadVert->top_right.pos = { sprite->pos.x + sprite->size.x,  sprite->pos.y  };
     quadVert->bot_right.pos = { sprite->pos.x + sprite->size.x,  sprite->pos.y + sprite->size.y };
   
-    quadVert->top_left.uv = { x * x_shift, y * y_shift };
-    quadVert->bot_left.uv = { x * x_shift,(y + 1) * y_shift };
-    quadVert->top_right.uv = { (x + 1) * x_shift, y * y_shift };
-    quadVert->bot_right.uv = { (x + 1) * x_shift,(y + 1) * y_shift };
+    if (!sprite->flipped)
+    {
+      quadVert->top_left.uv = { x * x_shift, y * y_shift };
+      quadVert->bot_left.uv = { x * x_shift,(y + 1) * y_shift };
+      quadVert->top_right.uv = { (x + 1) * x_shift, y * y_shift };
+      quadVert->bot_right.uv = { (x + 1) * x_shift,(y + 1) * y_shift };
+    }
+    else
+    {
+      quadVert->top_right.uv = { x * x_shift, y * y_shift };
+      quadVert->bot_right.uv = { x * x_shift,(y + 1) * y_shift };
+      quadVert->top_left.uv = { (x + 1) * x_shift, y * y_shift };
+      quadVert->bot_left.uv = { (x + 1) * x_shift,(y + 1) * y_shift };
+    }
 
     quadVert->top_left.color = sprite->color_tint;
     quadVert->bot_left.color = sprite->color_tint;
@@ -251,8 +261,11 @@ const char* fragment_shader_source = "#version 330 core\n"
 "uniform sampler2D u_texture;"
 "void main()"
 "{"
-"   FragColor = v_tint_color * texture(u_texture, v_tex_coord);" // WHITE
-//"   FragColor = v_tint_color;" // WHITE
+"  vec2 pixel = v_tex_coord * vec2(768.0f,352.0f);"
+"  vec2 uv = floor(pixel) + 0.5f;"
+"  uv += 1.0 - clamp((1.0 - fract(pixel)) * 4.0f, 0.0, 1.0);"
+//"   FragColor = v_tint_color * texture(u_texture, v_tex_coord);" // WHITE
+"  FragColor = v_tint_color * texture(u_texture, uv / vec2(768.0f,352.0f));"
 "}";
 
 const char* font_vertex_shader_source = "#version 330 core\n"
@@ -276,7 +289,7 @@ const char* font_fragment_shader_source = "#version 330 core\n"
 "   FragColor = u_tint_color * sampled;" // WHITE
 "}";
 
-int main(int argc,char* argv[])
+int not_main(int argc,char* argv[])
 {
   SDL_Context sdl_context{};
   if (!sdl_context.create())
@@ -289,9 +302,9 @@ int main(int argc,char* argv[])
   glEnable(GL_CULL_FACE); // Face culling
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  Memory_Chunk persist_mem;
+  Game_Memory persist_mem;
   persist_mem.init(5 * 1024 * 1024);
-  Memory_Chunk frame_mem;
+  Game_Memory frame_mem;
   frame_mem.init(5 * 1024 * 1024);
   Game_Context game_context;
   {
@@ -309,9 +322,9 @@ int main(int argc,char* argv[])
 
   Uint32 font_shader = load_shader_2d(font_vertex_shader_source, font_fragment_shader_source);
 
-  constexpr int max_entity_count = 1000;
+  constexpr int max_entity_per_batch = 1000;
   Mesh quad_mesh;
-  create_2d_mesh(&game_context.frame_memory, max_entity_count, &quad_mesh);
+  create_2d_mesh(&game_context.frame_memory, max_entity_per_batch, &quad_mesh);
   game_context.frame_memory.memory_chunk->clear();
 
   Sprite_Sheet one_bit_sprites;
@@ -367,9 +380,7 @@ int main(int argc,char* argv[])
   while (output->continue_running)
   {
     frame_mem.clear();
-    const int max_entity_count = 200;
-    Array<Quad_Verts> quad_vertices;
-    quad_vertices.init(&game_context.frame_memory, max_entity_count);
+
 
     poll_input(&game_context.control);
     
@@ -389,7 +400,7 @@ int main(int argc,char* argv[])
       delta_time = deltaTimeLimit;
     }
     realTickElapsed = SDL_GetTicks();
-    game_context.delta_time = .0166f;
+    game_context.delta_time = delta_time;
     
     output = the_game.update(&game_context);
 
@@ -403,41 +414,69 @@ int main(int argc,char* argv[])
       Mix_PlayChannel(-1, audio_library->bop_sound, 0);
     }
 
-
-    // Render Stuff
+    // Begin Render Stuff
+    // Clear screen
     glClearColor(0.1f, 0.1f, 0.1f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Entity Batch
+    // Sprite Batch
     glBindVertexArray(quad_mesh.vertex_array);
     if(output->sprite_batch)
     {
+      // @TODO some waste here but what ever?
+      Array<Quad_Verts> world_vertices;
+      world_vertices.init(&game_context.frame_memory, output->sprite_batch->size);
+      Array<Quad_Verts> ui_vertices;
+      ui_vertices.init(&game_context.frame_memory, output->sprite_batch->size);
+
       glUseProgram(shader_program);
       glUniformMatrix4fv(glGetUniformLocation(shader_program, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
       glBindTexture(GL_TEXTURE_2D, one_bit_sprites.gl_texture);
-      SDL_assert(output->sprite_batch->size <= max_entity_count);
-
-      // Sort
-      entity_to_quad_verts(&one_bit_sprites, &(output->sprite_batch->data[0]), &quad_vertices[0]);
-      for (int i = 1; i < output->sprite_batch->size; i++)
+      SDL_assert(output->sprite_batch->size <= max_entity_per_batch);
+      
+      // Split and sort
+      for (int i = 0; i < output->sprite_batch->size; i++)
       {
-        int order = output->sprite_batch->data[i].layer_order;
-        int j = i - 1;
-
-        while (j >= 0 && output->sprite_batch->data[j].layer_order > order)
+        if (output->sprite_batch->data[i].layer == Sprite::WORLD)
         {
-          quad_vertices[j + 1] = quad_vertices[j];
-          j--;
+          int j = world_vertices.size - 1;
+          while (j >= 0 && world_vertices[j].top_left.pos.y > output->sprite_batch->data[i].pos.y)
+          {
+            world_vertices[j + 1] = world_vertices[j];
+            j--;
+          }
+          entity_to_quad_verts(&one_bit_sprites, &(output->sprite_batch->data[i]), &world_vertices[j + 1]);
+          world_vertices.size++;
         }
-        entity_to_quad_verts(&one_bit_sprites, &(output->sprite_batch->data[i]), &quad_vertices[j + 1]);
+        else if (output->sprite_batch->data[i].layer == Sprite::UI)
+        {
+          int j = ui_vertices.size - 1;
+          while (j >= 0 && ui_vertices[j].top_left.pos.y > output->sprite_batch->data[i].pos.y)
+          {
+            ui_vertices[j + 1] = ui_vertices[j];
+            j--;
+          }
+          entity_to_quad_verts(&one_bit_sprites, &(output->sprite_batch->data[i]), &ui_vertices[j + 1]);
+          ui_vertices.size++;
+        }
+        else {
+          SDL_assert(false);
+        }
       }
 
-      glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * output->sprite_batch->size, quad_vertices.data);
-      glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * output->sprite_batch->size, GL_UNSIGNED_INT, 0);
+      glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * world_vertices.size, world_vertices.data);
+      glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * world_vertices.size, GL_UNSIGNED_INT, 0);
+
+      glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * ui_vertices.size, ui_vertices.data);
+      glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * ui_vertices.size, GL_UNSIGNED_INT, 0);
     }
+
+    // @TODO ordering with sprite??
 
     if (output->text_batch)
     {
+      Array<Quad_Verts> ui_vertices;
+      ui_vertices.init(&game_context.frame_memory, 200);
       // Text batch
       glUseProgram(font_shader);
       glUniformMatrix4fv(glGetUniformLocation(font_shader, "u_projection_mat"), 1, GL_FALSE, glm::value_ptr(projection_matrix));
@@ -450,11 +489,12 @@ int main(int argc,char* argv[])
       int text_width_acc = 0;
       for (int i = 0; i < output->text_batch->size; i++)
       {
-        screen_text_to_quad_verts(&liberation_mono_font, &(output->text_batch->data[i]), quad_vertices.data + text_width_acc);
+        screen_text_to_quad_verts(&liberation_mono_font, &(output->text_batch->data[i]), ui_vertices.data + text_width_acc);
+        ui_vertices.size++;
         text_width_acc += output->text_batch->data->text_len;
       }
-      SDL_assert(text_width_acc <= max_entity_count);
-      glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * (text_width_acc), quad_vertices.data);
+      SDL_assert(text_width_acc <= max_entity_per_batch);
+      glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Quad_Verts) * (text_width_acc), ui_vertices.data);
       glDrawElements(GL_TRIANGLES, Quad_Triangle::element_count * (text_width_acc), GL_UNSIGNED_INT, 0);
     }
 

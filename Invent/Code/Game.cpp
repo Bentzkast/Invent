@@ -19,6 +19,7 @@ static Sprite* sprite_push(Array<Sprite>* sprite, glm::vec2 pos, glm::vec2 size,
   sprite->data[i].size = size;
   sprite->data[i].offset = offset;
   sprite->data[i].color_tint = color;
+  sprite->data[i].layer = Sprite::WORLD;
   sprite->size++;
 
   return &sprite->data[i];
@@ -59,7 +60,8 @@ struct Game_Play
   Array<Unit> army_one;
   Array<Unit> grasses;
 
-  Formation formation;
+  Formation formation_foot;
+  Formation formation_knight;
   float rot;
   glm::vec2 target_pos;
 
@@ -68,37 +70,57 @@ struct Game_Play
     sprites.init(&context->persist_memory, 200);
     texts.init(&context->persist_memory, 10);
 
-    army_one.init(&context->persist_memory, 10);
+    army_one.init(&context->persist_memory, 21);
     grasses.init(&context->persist_memory, 20);
 
-    cursor = sprite_push(&sprites, { 0, 0 }, { 48, 48 }, { 36, 10 }, { 0.9f,0.8f, 0.8f,1.0f });
-    cursor->layer_order = context->dimension.y;
+    cursor = sprite_push(&sprites, { 0, 0 }, { 64, 64 }, { 36, 10 }, { 0.9f,0.8f, 0.8f,1.0f });
+    cursor->layer = Sprite::UI;
     target_pos = { 500 , 500 };
 
     for (size_t i = 0; i < 10; i++)
     {
-      grasses[i].base_pos = { rand() % (int)context->dimension.x, rand() % (int)context->dimension.y };
-      grasses[i].sprite = sprite_push(&sprites, grasses[i].base_pos, { 48, 48 }, { 0, 2 }, { 0.9f,0.8f, 0.8f,1.0f });
-      grasses[i].sprite->layer_order = grasses[i].base_pos.y;
+      //grasses[i].base_pos = { rand() % (int)context->dimension.x, rand() % (int)context->dimension.y };
+      grasses[i].base_pos = { rand() % (int)context->dimension.x, i * 50 };
+      grasses[i].sprite = sprite_push(&sprites, grasses[i].base_pos, { 64, 64 }, { 0, 2 }, { 0.9f,0.8f, 0.8f,1.0f });
       grasses.size++;
     }
-    for (int y = 0; y < 10; y++)
+    for (int i = 0; i < 20; i++)
     {
-      army_one[y].base_pos = { 0, 0 };
-      army_one[y].sprite = sprite_push(&sprites, army_one[y].base_pos, { 48, 48 }, { 27, 0 }, { 0.9f,0.8f, 0.8f,1.0f });
-      // TODO max formation size???
-      army_one[y].formation = &formation;
-      army_one.size++;
+      if (i < 10)
+      {
+        army_one[i].base_pos = { 0, 0 };
+        army_one[i].sprite = sprite_push(&sprites, army_one[i].base_pos, { 64, 64 }, { 27, 0 }, { 0.9f,0.8f, 0.8f,1.0f });
+        army_one[i].sprite->flipped = true;
+        // TODO max formation size???
+        army_one[i].formation = &formation_foot;
+        army_one.size++;
+      }
+      else
+      {
+        army_one[i].base_pos = { 0, 0 };
+        army_one[i].sprite = sprite_push(&sprites, army_one[i].base_pos, { 64, 64 }, { 28, 0 }, { 0.9f,0.8f, 0.8f,1.0f });
+        // TODO max formation size???
+        army_one[i].formation = &formation_knight;
+        army_one.size++;
+      }
     }
 
     rot = 0;
 
-    formation.pos = { 500, 500 };
-    formation.vel = { 0, 0 };
-    formation.direction.x = glm::cos(glm::radians(rot));
-    formation.direction.y = -glm::cos(glm::radians(rot));
-    formation.dimension = { 5, 2 };
-    formation.filled_slot = 0;
+    formation_foot.pos = { 300, 500 };
+    formation_foot.vel = { 0, 0 };
+    formation_foot.direction.x = 1;
+    formation_foot.direction.y = -1;// -glm::cos(glm::radians(rot));
+    formation_foot.dimension = { 5, 2 };
+    formation_foot.filled_slot = 0;
+
+
+    formation_knight.pos = { 600, 500 };
+    formation_knight.vel = { 0, 0 };
+    formation_knight.direction.x = -1;
+    formation_knight.direction.y = 1;// -glm::cos(glm::radians(rot));
+    formation_knight.dimension = { 5, 2 };
+    formation_knight.filled_slot = 0;
   }
   void start(Game_Context* context, Game_Output* output)
   {
@@ -126,24 +148,40 @@ struct Game_Play
     {
       target_pos = cursor->pos;
     }
-    rot += dt * 200;
-    auto dir = glm::normalize(target_pos - formation.pos);
+    //if (control->is.left_down && control->was.left_down)
+    //{
+    //  formation.pos.x -= move_speed;
+    //}
+    //if (control->is.right_down && control->was.right_down)
+    //{
+    //  formation.pos.x += move_speed;
+    //}
+    //if (control->is.up_down && control->was.up_down)
+    //{
+    //  formation.pos.y -= move_speed;
+    //}
+    //if (control->is.down_down && control->was.down_down)
+    //{
+    //  formation.pos.y += move_speed;
+    //}
+    //rot += dt * 200;
+    //auto dir = glm::normalize(target_pos - formation.pos);
     //if (glm::length(target_pos - formation.pos) > 10.0f)
     //{
     //  formation.direction = dir; //hmmm
     //  formation.pos += move_speed * formation.direction;
     //}
-    formation.direction.x = glm::cos(glm::radians(rot));
-    formation.direction.y = -glm::sin(glm::radians(rot));
+    //formation.direction.x = glm::cos(glm::radians(rot));
+    //formation.direction.y = -glm::sin(glm::radians(rot));
     //formation.pos += formation.vel * dt;
     // clear formation slots
-    formation.filled_slot = 0;
-
+    formation_foot.filled_slot = 0;
+    formation_knight.filled_slot = 0;
 
     // fill in formation slots
     // @TODO readjust when taking sub strenght
     // @TODO stutter problem??
-    for (size_t i = 0; i < army_one.size; i++)
+    for (int i = 0; i < army_one.size; i++)
     {
       auto formation = army_one[i].formation;
       auto perp = glm::normalize(perpendicular_clockwise(formation->direction));
@@ -151,8 +189,8 @@ struct Game_Play
        
       int pos_in_row = formation->filled_slot % formation->dimension.x;
       int pos_in_col = formation->filled_slot / formation->dimension.x;
-      auto pos = formation->pos - perp * 48.0f * (float)formation->dimension.x / 2.0f + perp * 24.0f;
-      army_one[i].base_pos = pos + perp * 48.0f * (float)pos_in_row + back * 48.0f * (float)pos_in_col;
+      auto pos = formation->pos - perp * 64.0f * (float)formation->dimension.x / 2.0f + perp * 32.0f;
+      army_one[i].base_pos = pos + perp * 64.0f * (float)pos_in_row + back * 64.0f * (float)pos_in_col;
       formation->filled_slot++;
     }
 
@@ -161,14 +199,12 @@ struct Game_Play
     {
       army_one[i].sprite->pos.y = army_one[i].base_pos.y - army_one[i].sprite->size.y;
       army_one[i].sprite->pos.x = army_one[i].base_pos.x - army_one[i].sprite->size.x / 2.0 ;
-      army_one[i].sprite->layer_order = army_one[i].sprite->pos.y;
     }
 
-    for (int i = 0; i < army_one.size; i++)
+    for (int i = 0; i < grasses.size; i++)
     {
       grasses[i].sprite->pos.y = grasses[i].base_pos.y - grasses[i].sprite->size.y;
       grasses[i].sprite->pos.x = grasses[i].base_pos.x - grasses[i].sprite->size.x / 2.0f;
-      grasses[i].sprite->layer_order = grasses[i].sprite->pos.y;
     }
 
     return Game_Mode::GAME_PLAY;
@@ -203,8 +239,8 @@ struct Main_Menu
 
     // awake can be multiple time ... maybe also setup start
     selection_sprite = sprite_push(&sprites, { 0, 0 }, { 25, 25 }, { 8, 5 }, { 0.9f,0.9f, 0.9f,1.0f });
-    cursor = sprite_push(&sprites, { 0, 0 }, { 48, 48 }, { 36, 10 }, { 0.9f,0.8f, 0.8f,1.0f });
-    cursor->layer_order = context->dimension.y;
+    cursor = sprite_push(&sprites, { 0, 0 }, { 64, 64 }, { 36, 10 }, { 0.9f,0.8f, 0.8f,1.0f });
+    cursor->layer = Sprite::UI;
 
     constexpr int buffer_size = 20;
 

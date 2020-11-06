@@ -57,7 +57,7 @@ struct Sprite_Sheet
   bool load_sprite_sheet(const char* filepath);
 };
 
-struct Memory_Chunk
+struct Game_Memory
 {
   size_t capacity;
   size_t used;
